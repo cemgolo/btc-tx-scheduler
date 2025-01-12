@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bitcoin Transaction Scheduler</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+        .container {
+            width: 90%;
+            max-width: 1200px;
+            margin: 20px auto;
+        }
+        h1 {
+            text-align: center;
+            color: #444;
+        }
+        .section {
+            background: #fff;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .section h2 {
+            margin-top: 0;
+        }
+        label {
+            display: block;
+            margin: 10px 0 5px;
+            font-weight: bold;
+        }
+        input, select, button {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background: #5a67d8;
+            color: white;
+            font-size: 16px;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #434aa8;
+        }
+        .transactions {
+            list-style: none;
+            padding: 0;
+        }
+        .transactions li {
+            padding: 10px;
+            margin-bottom: 10px;
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Bitcoin Transaction Scheduler</h1>
+
+        <!-- List Transactions Section -->
+        <div class="section" id="list-transactions">
+            <h2>List Transactions</h2>
+            <button onclick="listTransactions()">Fetch Transactions</button>
+            <ul class="transactions" id="transactions-list">
+                <!-- Transactions will appear here -->
+            </ul>
+        </div>
+
+        <!-- Schedule Transaction Section -->
+        <div class="section" id="schedule-transaction">
+            <h2>Schedule a New Transaction</h2>
+            <form id="schedule-form">
+                <label for="mnemonic">Mnemonic</label>
+                <input type="text" id="mnemonic" placeholder="Enter your mnemonic" required>
+
+                <label for="recipient">Recipient Address</label>
+                <input type="text" id="recipient" placeholder="Enter recipient address" required>
+
+                <label for="amount">Amount (BTC)</label>
+                <input type="number" step="0.00000001" id="amount" placeholder="Enter amount" required>
+
+                <label for="fee-rate">Fee Rate (satoshis/byte)</label>
+                <input type="number" id="fee-rate" placeholder="Enter fee rate" required>
+
+                <label for="scheduled-time">Scheduled Time (YYYY-MM-DD HH:MM:SS)</label>
+                <input type="text" id="scheduled-time" placeholder="Enter scheduled time" required>
+
+                <button type="button" onclick="scheduleTransaction()">Schedule Transaction</button>
+            </form>
+        </div>
+
+        <!-- Broadcast Transaction Section -->
+        <div class="section" id="broadcast-transaction">
+            <h2>Broadcast a Transaction</h2>
+            <form id="broadcast-form">
+                <label for="transaction-id">Transaction ID</label>
+                <input type="text" id="transaction-id" placeholder="Enter transaction ID" required>
+                <button type="button" onclick="broadcastTransaction()">Broadcast Transaction</button>
+            </form>
+        </div>
+
+        <!-- Delete Transaction Section -->
+        <div class="section" id="delete-transaction">
+            <h2>Delete a Transaction</h2>
+            <form id="delete-form">
+                <label for="delete-id">Transaction ID</label>
+                <input type="text" id="delete-id" placeholder="Enter transaction ID" required>
+                <button type="button" onclick="deleteTransaction()">Delete Transaction</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const baseURL = "http://localhost:5000";
+
+        async function listTransactions() {
+            const response = await fetch(`${baseURL}/transactions`);
+            const data = await response.json();
+            const transactionsList = document.getElementById('transactions-list');
+            transactionsList.innerHTML = '';
+
+            data.forEach(tx => {
+                const li = document.createElement('li');
+                li.textContent = `ID: ${tx.id}, Scheduled Time: ${tx.scheduled_time}, Status: ${tx.status}`;
+                transactionsList.appendChild(li);
+            });
+        }
+
+        async function scheduleTransaction() {
+            const mnemonic = document.getElementById('mnemonic').value;
+            const recipient = document.getElementById('recipient').value;
+            const amount = parseFloat(document.getElementById('amount').value);
+            const feeRate = parseFloat(document.getElementById('fee-rate').value);
+            const scheduledTime = document.getElementById('scheduled-time').value;
+
+            const response = await fetch(`${baseURL}/schedule`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mnemonic, recipient, amount, fee_rate: feeRate, scheduled_time: scheduledTime })
+            });
+
+            const data = await response.json();
+            alert(data.message);
+        }
+
+        async function broadcastTransaction() {
+            const id = document.getElementById('transaction-id').value;
+
+            const response = await fetch(`${baseURL}/broadcast`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id })
+            });
+
+            const data = await response.json();
+            alert(data.message);
+        }
+
+        async function deleteTransaction() {
+            const id = document.getElementById('delete-id').value;
+
+            const response = await fetch(`${baseURL}/delete`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id })
+            });
+
+            const data = await response.json();
+            alert(data.message);
+        }
+    </script>
+</body>
+</html>
