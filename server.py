@@ -2,21 +2,23 @@ from flask import Flask, request, jsonify, render_template
 from file_manager import load_transactions, save_transaction, delete_transaction
 from broadcaster import broadcast_transaction
 from signer import generate_private_key, sign_transaction
-from utils import get_current_time
-import os
+from utils import public_key_to_address
 from pathlib import Path
+from datetime import datetime
+from utils import get_current_time
 
-# Initialize Flask app
+
 app = Flask(__name__)
 TX_DIR = Path('transactions')
 
+transactions = []
+
 @app.route('/')
 def home():
-    return render_template("index.html")  # Render a simple homepage (described below)
+    return render_template("index.html", transactions=transactions)
 
 @app.route('/transactions', methods=['GET'])
 def list_transactions():
-    # Load transactions and format for display
     transactions = load_transactions()
     formatted = [
         {
@@ -29,38 +31,58 @@ def list_transactions():
     return jsonify(formatted)
 
 @app.route('/schedule', methods=['POST'])
-def schedule_transaction():
-    data = request.get_json()
-    if not data:
-        return jsonify({"error": "No data provided"}), 400
+def create_transaction():
+    mnemonic = request.form.get('mnemonic')
+    address_choice = request.form.get('address_choice')
+    recipient_address = None
+
+    if address_choice == 'direct':
+        recipient_address = request.form.get('recipient_address')
+    elif address_choice == 'public_key':
+        public_key_hex = request.form.get('public_key')
+        try:
+            public_key_bytes = bytes.fromhex(public_key_hex)
+            recipient_address = public_key_to_address(public_key_bytes)
+        except ValueError:
+            return jsonify({'error': 'Invalid public key format'}), 400
+
+    amount = request.form.get('amount')
+    fee_rate = request.form.get('fee_rate')
+    scheduled_time_str = request.form.get('scheduled_time')
 
     try:
-        # Extract and validate input
-        mnemonic_words = data["mnemonic"]
-        recipient_address = data["recipient"]
-        amount = float(data["amount"])
-        fee_rate = float(data["fee_rate"])
-        scheduled_time_str = data["scheduled_time"]
+        key = generate_private_key(mnemonic)
+    except ValueError as ve:
+       return jsonify({"Error": {ve}}), 500
+        
+    unspents = key.get_unspents()
+    if not unspents:
+        return jsonify({"Error": "No unspent transactions available."}), 400
 
-        # Generate private key and sign transaction
-        key = generate_private_key(mnemonic_words)
-        unspents = key.get_unspents()
-        if not unspents:
-            return jsonify({"error": "No unspent transactions available"}), 400
-        outputs = [(recipient_address, amount, 'btc')]
+    outputs = [(recipient_address, amount, 'btc')]
+    try:
         unsigned_tx_hex = key.create_transaction(
             outputs, fee=0, absolute_fee=True, unspents=unspents, combine=True
         )
         estimated_size = len(unsigned_tx_hex) // 2
         total_fee_satoshis = int(fee_rate * estimated_size)
         signed_tx_hex = sign_transaction(key, outputs, total_fee_satoshis, unspents)
+    except ValueError as ve:
+        return jsonify({"Error": {ve}})
+    tx_filename = save_transaction(signed_tx_hex, scheduled_time_str)
+    jsonify({"message": "Transaction created and saved as: {tx_filename.name}"})
 
-        # Save transaction
-        tx_filename = save_transaction(signed_tx_hex, scheduled_time_str)
-        return jsonify({"message": f"Transaction saved as {tx_filename.name}"}), 200
+    transaction = {
+        'mnemonic': mnemonic,
+        'recipient_address': recipient_address,
+        'amount': amount,
+        'fee_rate': fee_rate,
+        'scheduled_time': scheduled_time_str,
+        'status': 'pending'
+    }
+    transactions.append(transaction)
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    return jsonify({'success': True})
 
 @app.route('/broadcast', methods=['POST'])
 def broadcast_transaction_cli():
@@ -82,10 +104,29 @@ def broadcast_transaction_cli():
                 return jsonify({"error": str(e)}), 500
     else:
         return jsonify({"error": "Transaction not found"}), 404
+    
+def delete_transaction_cli():
+    tx_id = input("Enter transaction ID to delete: ").strip()
+    tx_file = Path('transactions') / tx_id
+    if tx_file.exists():
+        delete_transaction(tx_file)
+        print("Transaction deleted successfully.")
+    else:
+        print("Error: Transaction not found.")
+
+def check_and_broadcast_transactions():
+    transactions = load_transactions()
+    now = get_current_time()
+    for tx in transactions:
+        if tx['scheduled_time'] <= now:
+            print(f"Broadcasting transaction ID: {tx['file'].name}")
+            try:
+                broadcast_transaction(tx['signed_tx_hex'])
+                delete_transaction(tx['file'])
+                print(f"Transaction {tx['file'].name} broadcasted successfully.")
+            except Exception as e:
+                print(f"Error broadcasting transaction {tx['file'].name}: {e}")
 
 if __name__ == '__main__':
-    # Ensure transaction directory exists
     TX_DIR.mkdir(exist_ok=True)
-
-    # Run the Flask app
     app.run(debug=True)
