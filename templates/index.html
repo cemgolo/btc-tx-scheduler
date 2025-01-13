@@ -4,121 +4,102 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bitcoin Transaction Scheduler</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: #f4f4f9;
-            color: #333;
-        }
-        .container {
-            width: 90%;
-            max-width: 1200px;
-            margin: 20px auto;
-        }
-        h1 {
-            text-align: center;
-            color: #444;
-        }
-        .section {
-            background: #fff;
-            padding: 20px;
-            margin-bottom: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-        .section h2 {
-            margin-top: 0;
-        }
-        label {
-            display: block;
-            margin: 10px 0 5px;
-            font-weight: bold;
-        }
-        input, select, button {
-            width: 100%;
-            padding: 10px;
-            margin-bottom: 15px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-        button {
-            background: #5a67d8;
-            color: white;
-            font-size: 16px;
-            border: none;
-            cursor: pointer;
-        }
-        button:hover {
-            background: #434aa8;
-        }
-        .transactions {
-            list-style: none;
-            padding: 0;
-        }
-        .transactions li {
-            padding: 10px;
-            margin-bottom: 10px;
-            background: #f9f9f9;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-    </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Bitcoin Transaction Scheduler</h1>
+    <h1>Schedule a Bitcoin Transaction</h1>
+    <form id="transaction-form" action="/schedule" method="post">
+        <label for="mnemonic">Enter your mnemonic:</label><br>
+        <input type="text" id="mnemonic" name="mnemonic" required><br><br>
 
-        <!-- List Transactions Section -->
-        <div class="section" id="list-transactions">
-            <h2>List Transactions</h2>
-            <button onclick="listTransactions()">Fetch Transactions</button>
-            <ul class="transactions" id="transactions-list">
-                <!-- Transactions will appear here -->
-            </ul>
+        <label for="address-choice">How would you like to provide the recipient's address?</label><br>
+        <input type="radio" id="direct" name="address_choice" value="direct" checked>
+        <label for="direct">Enter a Bitcoin address</label><br>
+        <input type="radio" id="public-key" name="address_choice" value="public_key">
+        <label for="public-key">Enter a public key</label><br><br>
+
+        <div id="address-field">
+            <label for="recipient-address">Recipient's Bitcoin Address:</label><br>
+            <input type="text" id="recipient-address" name="recipient_address"><br><br>
         </div>
 
-        <!-- Schedule Transaction Section -->
-        <div class="section" id="schedule-transaction">
-            <h2>Schedule a New Transaction</h2>
-            <form id="schedule-form">
-                <label for="mnemonic">Mnemonic</label>
-                <input type="text" id="mnemonic" placeholder="Enter your mnemonic" required>
-
-                <label for="recipient">Recipient Address</label>
-                <input type="text" id="recipient" placeholder="Enter recipient address" required>
-
-                <label for="amount">Amount (BTC)</label>
-                <input type="number" step="0.00000001" id="amount" placeholder="Enter amount" required>
-
-                <label for="fee-rate">Fee Rate (satoshis/byte)</label>
-                <input type="number" id="fee-rate" placeholder="Enter fee rate" required>
-
-                <label for="scheduled-time">Scheduled Time (YYYY-MM-DD HH:MM:SS)</label>
-                <input type="text" id="scheduled-time" placeholder="Enter scheduled time" required>
-
-                <button type="button" onclick="scheduleTransaction()">Schedule Transaction</button>
-            </form>
+        <div id="public-key-field" style="display: none;">
+            <label for="public-key-input">Recipient's Public Key (hex):</label><br>
+            <input type="text" id="public-key-input" name="public_key"><br><br>
         </div>
 
-        <!-- Broadcast Transaction Section -->
+        <label for="amount">Enter amount (BTC):</label><br>
+        <input type="number" id="amount" name="amount" step="0.00000001" required><br><br>
+
+        <label for="fee-rate">Enter fee rate (satoshis/byte):</label><br>
+        <input type="number" id="fee-rate" name="fee_rate" required><br><br>
+
+        <label for="scheduled-time">Enter scheduled time (YYYY-MM-DD HH:MM:SS):</label><br>
+        <input type="datetime-local" id="scheduled-time" name="scheduled_time" required><br><br>
+
+        <button type="submit">Schedule Transaction</button>
+    </form>
+
+    <h2>Transactions List</h2>
+    <ul id="transactions-list">
+        <!-- Transactions will be displayed here -->
+        {% for tx in transactions %}
+        <li>
+            <strong>ID:</strong> {{ loop.index }}<br>
+            <strong>Scheduled Time:</strong> {{ tx['scheduled_time'].strftime('%Y-%m-%d %H:%M:%S') }}<br>
+            <strong>Recipient Address:</strong> {{ tx['recipient_address'] }}<br>
+            <strong>Amount:</strong> {{ tx['amount'] }} BTC<br>
+            <strong>Status:</strong> {{ tx['status'] }}<br>
+            <button onclick="deleteTransaction()">Delete</button>
+        </li>
+        <hr>
+        {% endfor %}
+    </ul>
+
+    <script>
+        const addressChoiceRadios = document.getElementsByName('address_choice');
+        const addressField = document.getElementById('address-field');
+        const publicKeyField = document.getElementById('public-key-field');
+
+        addressChoiceRadios.forEach(radio => {
+            radio.addEventListener('change', () => {
+                if (radio.value === 'direct') {
+                    addressField.style.display = 'block';
+                    publicKeyField.style.display = 'none';
+                } else if (radio.value === 'public_key') {
+                    addressField.style.display = 'none';
+                    publicKeyField.style.display = 'block';
+                }
+            });
+        });
+
+        // Handle form submission
+        const form = document.getElementById('transaction-form');
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault(); // Prevent default form submission
+
+            const formData = new FormData(form);
+            const response = await fetch('/schedule', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (response.ok) {
+                alert('Your transaction is scheduled!');
+                location.reload(); // Reload the page to update the transactions list
+            } else {
+                const error = await response.json();
+                alert('Error: ' + error.error);
+            }
+        });
+    </script>
+
+    </div>
         <div class="section" id="broadcast-transaction">
             <h2>Broadcast a Transaction</h2>
             <form id="broadcast-form">
                 <label for="transaction-id">Transaction ID</label>
                 <input type="text" id="transaction-id" placeholder="Enter transaction ID" required>
                 <button type="button" onclick="broadcastTransaction()">Broadcast Transaction</button>
-            </form>
-        </div>
-
-        <!-- Delete Transaction Section -->
-        <div class="section" id="delete-transaction">
-            <h2>Delete a Transaction</h2>
-            <form id="delete-form">
-                <label for="delete-id">Transaction ID</label>
-                <input type="text" id="delete-id" placeholder="Enter transaction ID" required>
-                <button type="button" onclick="deleteTransaction()">Delete Transaction</button>
             </form>
         </div>
     </div>
