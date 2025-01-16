@@ -41,11 +41,14 @@ def create_transaction():
     scheduled_time_str = request.form.get('scheduled_time')
 
     try:
-        key = generate_private_key(mnemonic)
+        key = generate_private_key(mnemonic, network="testnet")
+        print("Generated Address:", key.address)
+
     except ValueError as ve:
         return jsonify({'error': f"Invalid mnemonic: {ve}"}), 400
 
     unspents = key.get_unspents()
+    print("DEBUG: Unspents fetched:", unspents)
     if not unspents:
         return jsonify({'error': 'No unspent transactions available'}), 400
 
