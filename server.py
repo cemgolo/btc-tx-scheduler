@@ -17,19 +17,6 @@ transactions = []
 def home():
     return render_template("index.html", transactions=transactions)
 
-@app.route('/transactions', methods=['GET'])
-def list_transactions():
-    transactions = load_transactions()
-    formatted = [
-        {
-            "id": tx["file"].name,
-            "scheduled_time": tx["scheduled_time"].strftime("%Y-%m-%d %H:%M:%S"),
-            "status": "pending"
-        }
-        for tx in transactions
-    ]
-    return jsonify(formatted)
-
 @app.route('/schedule', methods=['POST'])
 def create_transaction():
     mnemonic = request.form.get('mnemonic')
@@ -46,6 +33,9 @@ def create_transaction():
         except ValueError:
             return jsonify({'error': 'Invalid public key format'}), 400
 
+    if not recipient_address:
+        return jsonify({'error': 'Recipient address is required'}), 400
+
     amount = request.form.get('amount')
     fee_rate = request.form.get('fee_rate')
     scheduled_time_str = request.form.get('scheduled_time')
@@ -53,11 +43,11 @@ def create_transaction():
     try:
         key = generate_private_key(mnemonic)
     except ValueError as ve:
-       return jsonify({"Error": {ve}}), 500
-        
+        return jsonify({'error': f"Invalid mnemonic: {ve}"}), 400
+
     unspents = key.get_unspents()
     if not unspents:
-        return jsonify({"Error": "No unspent transactions available."}), 400
+        return jsonify({'error': 'No unspent transactions available'}), 400
 
     outputs = [(recipient_address, amount, 'btc')]
     try:
@@ -68,21 +58,28 @@ def create_transaction():
         total_fee_satoshis = int(fee_rate * estimated_size)
         signed_tx_hex = sign_transaction(key, outputs, total_fee_satoshis, unspents)
     except ValueError as ve:
-        return jsonify({"Error": {ve}})
+        return jsonify({'error': f"Error creating transaction: {ve}"}), 400
+
+    try:
+        scheduled_time = datetime.strptime(scheduled_time_str, '%Y-%m-%dT%H:%M')
+    except ValueError:
+        return jsonify({'error': 'Invalid date format'}), 400
+
     tx_filename = save_transaction(signed_tx_hex, scheduled_time_str)
-    jsonify({"message": "Transaction created and saved as: {tx_filename.name}"})
+    print(f"Transaction created and saved as: {tx_filename.name}")
 
     transaction = {
         'mnemonic': mnemonic,
         'recipient_address': recipient_address,
         'amount': amount,
         'fee_rate': fee_rate,
-        'scheduled_time': scheduled_time_str,
+        'scheduled_time': scheduled_time.strftime('%Y-%m-%d %H:%M:%S'),
         'status': 'pending'
     }
+
     transactions.append(transaction)
 
-    return jsonify({'success': True})
+    return jsonify({'success': True, 'transaction': transaction})
 
 @app.route('/broadcast', methods=['POST'])
 def broadcast_transaction_cli():
@@ -106,13 +103,13 @@ def broadcast_transaction_cli():
         return jsonify({"error": "Transaction not found"}), 404
     
 def delete_transaction_cli():
-    tx_id = input("Enter transaction ID to delete: ").strip()
+    tx_id = request.form.get('tx_id').strip()
     tx_file = Path('transactions') / tx_id
     if tx_file.exists():
         delete_transaction(tx_file)
-        print("Transaction deleted successfully.")
+        jsonify({"message": "Transaction deleted successfully."}), 200
     else:
-        print("Error: Transaction not found.")
+        jsonify({"error": "Transaction not found."}), 404
 
 def check_and_broadcast_transactions():
     transactions = load_transactions()

@@ -41,7 +41,6 @@
 
     <h2>Transactions List</h2>
     <ul id="transactions-list">
-        <!-- Transactions will be displayed here -->
         {% for tx in transactions %}
         <li>
             <strong>ID:</strong> {{ loop.index }}<br>
@@ -51,11 +50,45 @@
             <strong>Status:</strong> {{ tx['status'] }}<br>
             <button onclick="deleteTransaction()">Delete</button>
         </li>
-        <hr>
         {% endfor %}
     </ul>
 
     <script>
+        const transactionsList = document.getElementById('transactions-list');
+        const form = document.getElementById('transaction-form');
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+
+            const formData = new FormData(form);
+            const response = await fetch('/schedule', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                alert('Transaction scheduled successfully!');
+
+                // Add the new transaction to the list dynamically
+                const newTransaction = document.createElement('li');
+                newTransaction.innerHTML = `
+                    <strong>ID:</strong> ${transactionsList.children.length + 1}<br>
+                    <strong>Scheduled Time:</strong> ${data.transaction.scheduled_time}<br>
+                    <strong>Recipient Address:</strong> ${data.transaction.recipient_address}<br>
+                    <strong>Amount:</strong> ${data.transaction.amount} BTC<br>
+                    <strong>Status:</strong> ${data.transaction.status}<br>
+                `;
+                transactionsList.appendChild(newTransaction);
+                location.reload();
+
+                // Clear the form
+                form.reset();
+            } else {
+                const error = await response.json();
+                alert('Error: ' + error.error);
+            }
+        });
+
         const addressChoiceRadios = document.getElementsByName('address_choice');
         const addressField = document.getElementById('address-field');
         const publicKeyField = document.getElementById('public-key-field');
@@ -71,34 +104,14 @@
                 }
             });
         });
-
-        // Handle form submission
-        const form = document.getElementById('transaction-form');
-        form.addEventListener('submit', async (event) => {
-            event.preventDefault(); // Prevent default form submission
-
-            const formData = new FormData(form);
-            const response = await fetch('/schedule', {
-                method: 'POST',
-                body: formData
-            });
-
-            if (response.ok) {
-                alert('Your transaction is scheduled!');
-                location.reload(); // Reload the page to update the transactions list
-            } else {
-                const error = await response.json();
-                alert('Error: ' + error.error);
-            }
-        });
     </script>
 
     </div>
         <div class="section" id="broadcast-transaction">
             <h2>Broadcast a Transaction</h2>
             <form id="broadcast-form">
-                <label for="transaction-id">Transaction ID</label>
-                <input type="text" id="transaction-id" placeholder="Enter transaction ID" required>
+                <label for="tx-id">Transaction ID</label>
+                <input type="text" id="tx-id" name="tx_id" placeholder="Enter transaction ID" required>
                 <button type="button" onclick="broadcastTransaction()">Broadcast Transaction</button>
             </form>
         </div>
