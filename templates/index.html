@@ -8,15 +8,15 @@
 <body>
     <h1>Schedule a Bitcoin Transaction</h1>
     <form id="transaction-form" action="/schedule" method="post">
-        <label for="mnemonic">Enter your mnemonic:</label><br>
-        <input type="text" id="mnemonic" name="mnemonic" required><br><br>
-        
+
         <label for="network">Select network:</label><br>
         <select id="network" name="network" required>
             <option value="bitcoin">Bitcoin Mainnet</option>
             <option value="testnet" selected>Bitcoin Testnet</option>
         </select><br><br>
-
+        
+        <label for="mnemonic">Enter your mnemonic:</label><br>
+        <input type="text" id="mnemonic" name="mnemonic" required><br><br>
         <label for="address-choice">How would you like to provide the recipient's address?</label><br>
         <input type="radio" id="direct" name="address_choice" value="direct" checked>
         <label for="direct">Enter a Bitcoin address</label><br>
