@@ -20,6 +20,7 @@ def home():
 @app.route('/schedule', methods=['POST'])
 def create_transaction():
     mnemonic = request.form.get('mnemonic')
+    network = request.form.get('network')
     address_choice = request.form.get('address_choice')
     recipient_address = None
 
@@ -41,7 +42,7 @@ def create_transaction():
     scheduled_time_str = request.form.get('scheduled_time')
 
     try:
-        key = generate_private_key(mnemonic, network="testnet")
+        key = generate_private_key(mnemonic, network=network)
         print("Generated Address:", key.address)
 
     except ValueError as ve:
