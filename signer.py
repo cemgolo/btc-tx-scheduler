@@ -7,10 +7,7 @@ def generate_private_key(mnemonic_words: str, network: str = "mainnet") -> Priva
     if not mnemo.check(mnemonic_words):
         raise ValueError("Invalid mnemonic phrase.")
     seed_bytes = Bip39SeedGenerator(mnemonic_words).Generate()
-    if network == "testnet":
-        bip44_def_ctx = Bip44.FromSeed(seed_bytes, Bip44Coins.BITCOIN_TESTNET)
-    else:
-        bip44_def_ctx = Bip44.FromSeed(seed_bytes, Bip44Coins.BITCOIN)
+    bip44_def_ctx = Bip44.FromSeed(seed_bytes, Bip44Coins.BITCOIN)
     bip44_acc_ctx = bip44_def_ctx.Purpose().Coin().Account(0)
     bip44_chg_ctx = bip44_acc_ctx.Change(Bip44Changes.CHAIN_EXT)
     bip44_addr_ctx = bip44_chg_ctx.AddressIndex(0)

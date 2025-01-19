@@ -6,12 +6,31 @@ from utils import public_key_to_address
 from pathlib import Path
 from datetime import datetime
 from utils import get_current_time
+import logging
 
+logging.getLogger('werkzeug').disabled = True
 
 app = Flask(__name__)
 TX_DIR = Path('transactions')
 
-transactions = []
+transactions = [
+    {
+        'mnemonic': "elma armut",
+        'recipient_address': "b1cornekadres",
+        'amount': "0.05",
+        'fee_rate': "12",
+        'scheduled_time': '2025-01-17 18:00:00',
+        'status': 'pending'
+    },
+    {
+        'mnemonic': 'example mnemonic two',
+        'recipient_address': 'tb1qexampleaddress0987654321abcd',
+        'amount': '0.002',
+        'fee_rate': '20',
+        'scheduled_time': '2025-01-19 16:00:00',
+        'status': 'pending'
+    }
+]
 
 @app.route('/')
 def home():
@@ -20,7 +39,6 @@ def home():
 @app.route('/schedule', methods=['POST'])
 def create_transaction():
     mnemonic = request.form.get('mnemonic')
-    network = request.form.get('network')
     address_choice = request.form.get('address_choice')
     recipient_address = None
 
@@ -41,49 +59,51 @@ def create_transaction():
     fee_rate = request.form.get('fee_rate')
     scheduled_time_str = request.form.get('scheduled_time')
 
+    key = None
     try:
-        key = generate_private_key(mnemonic, network=network)
+        key = generate_private_key(mnemonic, network="mainnet")
         print("Generated Address:", key.address)
 
-    except ValueError as ve:
-        return jsonify({'error': f"Invalid mnemonic: {ve}"}), 400
+        unspents = key.get_unspents()
+        print("DEBUG: Unspents fetched:", unspents)
+        if not unspents:
+            return jsonify({'error': 'No unspent transactions available'}), 400
 
-    unspents = key.get_unspents()
-    print("DEBUG: Unspents fetched:", unspents)
-    if not unspents:
-        return jsonify({'error': 'No unspent transactions available'}), 400
-
-    outputs = [(recipient_address, amount, 'btc')]
-    try:
+        outputs = [(recipient_address, amount, 'btc')]
         unsigned_tx_hex = key.create_transaction(
             outputs, fee=0, absolute_fee=True, unspents=unspents, combine=True
         )
         estimated_size = len(unsigned_tx_hex) // 2
         total_fee_satoshis = int(fee_rate * estimated_size)
         signed_tx_hex = sign_transaction(key, outputs, total_fee_satoshis, unspents)
+
+        try:
+            scheduled_time = datetime.strptime(scheduled_time_str, '%Y-%m-%dT%H:%M')
+        except ValueError:
+            return jsonify({'error': 'Invalid date format'}), 400
+
+        tx_filename = save_transaction(signed_tx_hex, scheduled_time_str)
+        print(f"Transaction created and saved as: {tx_filename.name}")
+
+        transaction = {
+            'mnemonic': mnemonic,
+            'recipient_address': recipient_address,
+            'amount': amount,
+            'fee_rate': fee_rate,
+            'scheduled_time': scheduled_time.strftime('%Y-%m-%d %H:%M:%S'),
+            'status': 'pending'
+        }
+        transactions.append(transaction)
+        return jsonify({'success': True, 'transaction': transaction})
+
     except ValueError as ve:
         return jsonify({'error': f"Error creating transaction: {ve}"}), 400
 
-    try:
-        scheduled_time = datetime.strptime(scheduled_time_str, '%Y-%m-%dT%H:%M')
-    except ValueError:
-        return jsonify({'error': 'Invalid date format'}), 400
+    finally:
+        if key:
+            del key
 
-    tx_filename = save_transaction(signed_tx_hex, scheduled_time_str)
-    print(f"Transaction created and saved as: {tx_filename.name}")
 
-    transaction = {
-        'mnemonic': mnemonic,
-        'recipient_address': recipient_address,
-        'amount': amount,
-        'fee_rate': fee_rate,
-        'scheduled_time': scheduled_time.strftime('%Y-%m-%d %H:%M:%S'),
-        'status': 'pending'
-    }
-
-    transactions.append(transaction)
-
-    return jsonify({'success': True, 'transaction': transaction})
 
 @app.route('/broadcast', methods=['POST'])
 def broadcast_transaction_cli():
@@ -130,4 +150,4 @@ def check_and_broadcast_transactions():
 
 if __name__ == '__main__':
     TX_DIR.mkdir(exist_ok=True)
-    app.run(debug=True)
+    app.run(debug=False)

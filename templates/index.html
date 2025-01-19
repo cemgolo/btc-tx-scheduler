@@ -4,24 +4,121 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bitcoin Transaction Scheduler</title>
+    <style>
+        body {
+          font-family: Arial, sans-serif;
+          background-color: #f4f4f4;
+          margin: 0;
+          padding: 0;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          min-height: 100vh;
+        }
+        .container {
+          width: 50%;
+          background: white;
+          padding: 50px;
+          border-radius: 10px;
+          box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .container h1 {
+          text-align: center;
+          margin-bottom: 20px;
+        }
+        label {
+          display: block;
+          margin-top: 50px;
+          margin-bottom: 10px;
+        }
+        input, select, button {
+          padding: 10px;
+          border: 1px solid #ccc;
+          border-radius: 5px;
+          box-sizing: border-box;
+        }
+        input[type="text"], input[type="datetime-local"], select {
+          width: 100%;
+        }
+        .inline-group {
+          display: flex;
+          align-items: center;
+          gap: 5px;
+          margin-bottom: 10px;
+          margin-top: 10px;
+        }
+        .inline-group label {
+          margin: 0;
+        }
+        .small-input {
+          width: 20%;
+        }
+        button {
+          cursor: pointer;
+          margin-top: 10px;
+          background-color: #4CAF50;
+          color: white;
+          border: none;
+          display: block;
+          margin-left: auto;
+          margin-right: auto;
+          padding: 10px 20px;
+        }
+        button:hover {
+          background-color: #45a049;
+        }
+        .transactions {
+          margin-top: 30px;
+        }
+        .transaction-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          background: #f9f9f9;
+          padding: 15px;
+          border-radius: 5px;
+          margin-bottom: 10px;
+          box-shadow: 0 1px 5px rgba(0, 0, 0, 0.1);
+        }
+        .transaction-item button {
+          display: flex;
+          width: auto;
+          padding: 5px 15px;
+          margin-left: auto;
+        }
+        .red {
+          background: #ff4d4d;
+          color: white;
+        }
+        .red:hover {
+          background: #e60000;
+        }
+
+        .blue {
+          background: #007bff;
+          color: white;
+        }
+
+        .blue:hover {
+          background: #0056b3;
+        }
+    </style>
 </head>
 <body>
+  <div class="container">
     <h1>Schedule a Bitcoin Transaction</h1>
     <form id="transaction-form" action="/schedule" method="post">
-
-        <label for="network">Select network:</label><br>
-        <select id="network" name="network" required>
-            <option value="bitcoin">Bitcoin Mainnet</option>
-            <option value="testnet" selected>Bitcoin Testnet</option>
-        </select><br><br>
-        
+      
         <label for="mnemonic">Enter your mnemonic:</label><br>
-        <input type="text" id="mnemonic" name="mnemonic" required><br><br>
+        <input type="text" id="mnemonic" name="mnemonic" autocomplete="off" required><br><br>
+
         <label for="address-choice">How would you like to provide the recipient's address?</label><br>
-        <input type="radio" id="direct" name="address_choice" value="direct" checked>
-        <label for="direct">Enter a Bitcoin address</label><br>
-        <input type="radio" id="public-key" name="address_choice" value="public_key">
-        <label for="public-key">Enter a public key</label><br><br>
+        <div class="inline-group">
+            <input type="radio" id="direct" name="address_choice" value="direct" checked>
+            <label for="direct">Enter a Bitcoin address</label><br>
+            <input type="radio" id="public-key" name="address_choice" value="public_key">
+            <label for="public-key">Enter a public key</label><br><br>
+        </div>
 
         <div id="address-field">
             <label for="recipient-address">Recipient's Bitcoin Address:</label><br>
@@ -33,11 +130,15 @@
             <input type="text" id="public-key-input" name="public_key"><br><br>
         </div>
 
-        <label for="amount">Enter amount (BTC):</label><br>
-        <input type="number" id="amount" name="amount" step="0.00000001" required><br><br>
+        <div class="inline-group">   
+            <label for="amount">Enter amount (BTC):</label><br>
+            <input type="number" id="amount" name="amount" step="0.00000001" min="0.00000001" required><br><br>
+        </div>
 
-        <label for="fee-rate">Enter fee rate (satoshis/byte):</label><br>
-        <input type="number" id="fee-rate" name="fee_rate" required><br><br>
+        <div class="inline-group">
+            <label for="fee-rate">Enter fee rate (satoshis/byte):</label><br>
+            <input type="number" id="fee-rate" name="fee_rate" min="1" required><br><br>
+        </div>
 
         <label for="scheduled-time">Enter scheduled time (YYYY-MM-DD HH:MM:SS):</label><br>
         <input type="datetime-local" id="scheduled-time" name="scheduled_time" required><br><br>
@@ -45,26 +146,35 @@
         <button type="submit">Schedule Transaction</button>
     </form>
 
-    <h2>Transactions List</h2>
-    <ul id="transactions-list">
-        {% for tx in transactions %}
-        <li>
-            <strong>ID:</strong> {{ loop.index }}<br>
-            <strong>Scheduled Time:</strong> {{ tx['scheduled_time'].strftime('%Y-%m-%d %H:%M:%S') }}<br>
-            <strong>Recipient Address:</strong> {{ tx['recipient_address'] }}<br>
-            <strong>Amount:</strong> {{ tx['amount'] }} BTC<br>
-            <strong>Status:</strong> {{ tx['status'] }}<br>
-            <button onclick="deleteTransaction()">Delete</button>
-        </li>
-        {% endfor %}
-    </ul>
+    <div class="transacitons">
+        <h2>Transactions List</h2>
+        <ul id="transactions-list">
+            {% for tx in transactions %}
+            <li>   
+                <div class="transaction-item">
+                    <div>
+                        <strong>ID:</strong> {{ loop.index }}<br>
+                        <strong>Scheduled Time:</strong> {{ tx['scheduled_time'] }}<br>
+                        <strong>Recipient Address:</strong> {{ tx['recipient_address'] }}<br>
+                        <strong>Amount:</strong> {{ tx['amount'] }} BTC<br>
+                        <strong>Status:</strong> {{ tx['status'] }}<br>
+                    </div>
+                    <div class="transaction-buttons">
+                      <button class="blue">Broadcast</button>
+                      <button class="red">Delete</button>
+                    </div>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+  </div>
 
     <script>
         const transactionsList = document.getElementById('transactions-list');
         const form = document.getElementById('transaction-form');
         form.addEventListener('submit', async (event) => {
             event.preventDefault();
-
             const formData = new FormData(form);
             const response = await fetch('/schedule', {
                 method: 'POST',
@@ -74,8 +184,6 @@
             if (response.ok) {
                 const data = await response.json();
                 alert('Transaction scheduled successfully!');
-
-                // Add the new transaction to the list dynamically
                 const newTransaction = document.createElement('li');
                 newTransaction.innerHTML = `
                     <strong>ID:</strong> ${transactionsList.children.length + 1}<br>
@@ -86,8 +194,6 @@
                 `;
                 transactionsList.appendChild(newTransaction);
                 location.reload();
-
-                // Clear the form
                 form.reset();
             } else {
                 const error = await response.json();
@@ -110,20 +216,7 @@
                 }
             });
         });
-    </script>
 
-    </div>
-        <div class="section" id="broadcast-transaction">
-            <h2>Broadcast a Transaction</h2>
-            <form id="broadcast-form">
-                <label for="tx-id">Transaction ID</label>
-                <input type="text" id="tx-id" name="tx_id" placeholder="Enter transaction ID" required>
-                <button type="button" onclick="broadcastTransaction()">Broadcast Transaction</button>
-            </form>
-        </div>
-    </div>
-
-    <script>
         const baseURL = "http://localhost:5000";
 
         async function listTransactions() {
